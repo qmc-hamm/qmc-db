@@ -148,8 +148,9 @@ Example data sets
 | `forces`           | (nstates, N,3)  | Forces (eV/Å)          |
 | `forces_error`           | (nstates, N,3)  | Forces (eV/Å)          |
 | `stress`           | (3,3)  | Stress tensor (GPa)    |
-| `structure_factor`           | (3,3)  | $ S(k) $    |
-| `structure_factor_error`           | (3,3)  | $ S(k) $    |
+| `structure_factor`           | (Nk,3)  | $ S(k) $    |
+| `structure_factor_error`           | (Nk,3)  | $ S(k) $    |
+| `structure_factor_ks`           | (Nk,3)  | K-points    |
 | `magnetic_moments` | (nstates, N,)   | Local magnetic moments |
 
 ## Provenance
