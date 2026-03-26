@@ -1,0 +1,162 @@
+{
+  ".attrs": {
+    "system": {
+      "type": "string",
+      "description": "Human-readable system name"
+    },
+    "formula": {
+      "type": "string",
+      "description": "Chemical formula (derived from atomic numbers)"
+    },
+    "natoms": {
+      "type": "int",
+      "description": "Number of atoms (N)"
+    },
+    "species": {
+      "type": "string",
+      "shape": ["natoms"],
+      "description": "Unique atomic species present in the system"
+    },
+    "atomic_numbers": {
+      "type": "int",
+      "shape": ["natoms"],
+      "description": "Atomic numbers for each atom (mapped from arrays['numbers'])"
+    },
+    "temperature": {
+      "type": "float",
+      "units": "K",
+      "description": "Temperature of the system sampled at"
+    },
+    "pressure": {
+      "type": "float",
+      "units": "GPa",
+      "description": "Hydrostatic pressure sampled at"
+    },
+    "uuid": {
+      "type": "string",
+      "description": "Unique ID for the calculation (mapped from info.uuid)"
+    }
+  },
+  "structure": {
+    "lattice_vectors": {
+      "type": "float",
+      "shape": ["nframes", 3, 3],
+      "units": "Å",
+      "description": "Lattice matrix (mapped from _cellobj)"
+    },
+    "positions": {
+      "type": "float",
+      "shape": ["nframes", "natoms", 3],
+      "units": "Å",
+      "description": "Cartesian positions of atoms"
+    },
+    "pbc": {
+      "type": "bool",
+      "shape": [3],
+      "description": "Periodic boundary condition flags (mapped from _pbc)"
+    }
+  },
+  "observables": {
+    "potential_energy": {
+      "type": "float",
+      "shape": ["nframes"],
+      "units": "eV",
+      "description": "Potential energy of the configurations"
+    },
+    "forces": {
+      "type": "float",
+      "shape": ["nframes", "natoms", 3],
+      "units": "eV/Å",
+      "description": "Forces on atoms"
+    },
+    "stress": {
+      "type": "float",
+      "shape": ["nframes", 6],
+      "units": "eV/Å^3",
+      "description": "Stress (virial) of the configurations"
+    }
+  },
+  "parameters": {
+    "kpoint_grid": {
+      "type": "int",
+      "shape": [3],
+      "description": "K-point sampling grid"
+    },
+    "koffset": {
+      "type": "int",
+      "shape": [3],
+      "description": "K-point grid offset"
+    },
+    "ecutwfc": {
+      "type": "float",
+      "units": "Ry",
+      "description": "Wavefunction cutoff energy"
+    },
+    "ecutrho": {
+      "type": "float",
+      "units": "Ry",
+      "description": "Density cutoff energy"
+    },
+    "smearing": {
+      "type": "string",
+      "description": "Smearing type (e.g., 'f-d')"
+    },
+    "sigma": {
+      "type": "float",
+      "units": "Ry",
+      "description": "Smearing width (mapped from degauss)"
+    },
+    "xc_functional": {
+      "type": "string",
+      "description": "Exchange-correlation functional (e.g., 'pbe')"
+    },
+    "pseudopotentials": {
+      "type": "string",
+      "description": "pseudopotential file names used"
+    }
+  },
+  "code": {
+    "name": {
+      "type": "string",
+      "description": "Code name (e.g., QE, QMCPACK)"
+    }
+  },
+  "MD_state": {
+    "total_energy": {
+      "type": "float",
+      "shape": ["nframes"],
+      "units": "eV",
+      "description": "Total energy during the MD simulation step (mapped from Etot[eV])"
+    },
+    "potential_energy": {
+      "type": "float",
+      "shape": ["nframes"],
+      "units": "eV",
+      "description": "Potential energy during the MD simulation step (mapped from Epot[eV])"
+    },
+    "kinetic_energy": {
+      "type": "float",
+      "shape": ["nframes"],
+      "units": "eV",
+      "description": "Kinetic energy during the MD simulation step (mapped from Ekin[eV])"
+    },
+    "stress": {
+      "type": "float",
+      "shape": ["nframes", 3, 3],
+      "units": "GPa",
+      "description": "Stress tensor components during the MD simulation step (mapped from Pxx, Pyy, Pzz, Pxy, Pxz, Pyz)"
+    },
+    "temperature": {
+      "type": "float",
+      "shape": ["nframes"],
+      "units": "K",
+      "description": "Temperature during the MD simulation step (mapped from T[K])"
+    }
+  },
+  "provenance": {
+    "iconf": {
+      "type": "int",
+      "description": "Configuration index from the trajectory file (mapped from info.iconf)"
+    }
+  }
+}
