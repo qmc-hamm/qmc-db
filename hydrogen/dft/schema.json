@@ -110,6 +110,10 @@
       "type": "string",
       "description": "Exchange-correlation functional (e.g., 'pbe')"
     },
+    "vdw": {
+      "type": "string",
+      "description": "vdW used"
+    },
     "pseudopotentials": {
       "type": "string",
       "description": "pseudopotential file names used"
@@ -118,7 +122,7 @@
   "code": {
     "name": {
       "type": "string",
-      "description": "Code name (e.g., QE, QMCPACK)"
+      "description": "Code name (e.g., QE)"
     }
   },
   "MD_state": {
