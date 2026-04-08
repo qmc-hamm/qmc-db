@@ -8,10 +8,10 @@ from gather_observables_for_database import gather_qmc_data
 
 def fill_attrs(f, system, nat):
     formulas = {
-        "FeAlN_32_atoms": "(FeAl16N15)^0",
-        "CrAlN_32_atoms": "(CrAl16N15)^1",
-        "NVdiamond_31_atoms": "(C30N1)^{-1}",
-        "SiVdiamond_31_atoms": "(C30Si1)^0",
+        "FeAlN_32_atoms": "FeAl15N16",
+        "CrAlN_32_atoms": "CrAl15N16",
+        "NVdiamond_31_atoms": "C30N1",
+        "SiVdiamond_31_atoms": "C30Si1",
     }
     species = {
         "FeAlN": ["Fe", "Al", "N"],
