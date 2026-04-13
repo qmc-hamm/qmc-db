@@ -64,7 +64,8 @@ def fill_parameters(f, system, nat, basis, calculation_type):
     dft["sz"] = sz[system]
     dft["charge"] = charge[system]
     dft["xc"] = ["pbe", "pbe0"]
-    dft["basis"] = basis
+    dft["ecp"] = "ccecp"
+    dft["basis"] = f"ccecpccp{basis}"
     dft["exp_to_discard"] = 0.1
     dft["max_cycle"] = 400
     dft["precision"] = 1e-08
