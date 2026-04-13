@@ -145,14 +145,18 @@ def evaluate_casci_symmetry_expectation_values(
     return symmetry_expectation_values
 
 
-def gather_vmc_rdm1(f_vmc, system):
+def define_defect_mo_indices_map():
     defect_mo_indices_map = {
         "FeAlN": [68, 69, 70, 71, 72],
         "CrAlN": [68, 69, 70, 71, 72],
         "NVdiamond": [57, 61, 62, 63],
         "SiVdiamond": [44, 48, 58, 59, 61, 62],
     }
-    defect_mo_indices = defect_mo_indices_map[system]
+    return defect_mo_indices_map
+
+
+def gather_vmc_rdm1(f_vmc, system):
+    defect_mo_indices = define_defect_mo_indices_map()[system]
     norb = f_vmc["rdm1_up_pbe0value"][...].shape[0]
     rdm1 = np.zeros((norb, norb))
     rdm1_error_squared = np.zeros((norb, norb))
@@ -190,6 +194,29 @@ def gather_spin_squared_irrep_from_casci(system, nat, mc, casci_index):
     spatial_irrep = irrep_selector[point_groups[system]](symmetry_expectation_values)
     irrep = rf"$^{{{int(2 * s + 1)}}}{spatial_irrep}$"
     return spin_squared, irrep
+
+
+def gather_casci_data(system, nat, xc, basis):
+    df = pd.DataFrame({})
+    eV_per_har = 27.2114
+    mf_chkfile = f"{system}_{nat}_atoms/dft/kroks_{xc}_{basis}_unc_False_cart_False.chk"
+    ci_chkfile = (
+        f"{system}_{nat}_atoms/casci/casci_{xc}_{basis}_unc_False_cart_False.chk"
+    )
+    _, _, mc = pyq.recover_pyscf(mf_chkfile, ci_checkfile=ci_chkfile)
+    for casci_index in range(mc.energy.shape[0]):
+        d = {}
+        d["casci_index"] = casci_index
+        d["total_energy"] = mc.energy[casci_index] * eV_per_har
+        d["excitation_energy"] = (mc.energy[casci_index] - mc.energy[0]) * eV_per_har
+        rdm1, _ = gather_casci_rdms(mc, casci_index)
+        d["rdm1"] = rdm1
+        d["spin_squared"], d["irrep"] = gather_spin_squared_irrep_from_casci(
+            system, nat, mc, casci_index
+        )
+        df = pd.concat([df, pd.DataFrame([d])], sort=False)
+    df["eigenstate"] = range(len(df.index))
+    return df
 
 
 def gather_qmc_data(system, nat, xc, basis, wf_type):
@@ -233,7 +260,8 @@ def gather_qmc_data(system, nat, xc, basis, wf_type):
     df["eigenstate"] = range(len(df.index))
     for rdm_entry in ["rdm1", "rdm1_error"]:
         df[rdm_entry] = df[rdm_entry].apply(
-            lambda x: x if isinstance(x, np.ndarray)
-            else np.full((mc.ncas, mc.ncas), np.nan)
+            lambda x: (
+                x if isinstance(x, np.ndarray) else np.full((mc.ncas, mc.ncas), np.nan)
+            )
         )
     return df
