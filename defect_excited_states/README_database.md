@@ -38,6 +38,7 @@ Each file is named:
 
 `/parameters/<calculation stage>/` : input parameters for each stage of the excited state calculation workflow.
     - `/parameters/dft/basis` : basis set used in the DFT calculation of orbitals
+    - `/parameters/dft/ecp` : effective core potentials used in DFT
     - `/parameters/dft/calculation_type` : type of DFT calculation (KROKS)
     - `/parameters/dft/charge` : defect charge used in DFT
     - `/parameters/dft/conv_tol` : SCF convergence tolerance used in DFT
