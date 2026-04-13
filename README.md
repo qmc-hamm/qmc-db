@@ -27,6 +27,7 @@ This should be indexable high-level metadata for database integration.
 | `pressure`         | float            | Pressure (GPa), if relevant                       |
 | `creation_date`    | string (ISO8601) | File creation timestamp                           |
 | `uuid`             | string           | Unique ID                                         |
+| `author`           | string[]         | Author(s) of data                                 |
 
 ## Parameters
 
