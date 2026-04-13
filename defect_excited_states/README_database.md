@@ -1,13 +1,13 @@
 # QMC database for defects
 
-This database contains QMC excited state results for defects, including nitrogen-vacancy and silicon-vacancy centers in diamond as well as iron and chromium impurities in aluminum nitride
-Each HDF5 file corresponds to a particular defect supercell and contains structure, parameters, code, and observables.
+This database contains CASCI and QMC excited state data for defects, including nitrogen-vacancy and silicon-vacancy centers in diamond as well as iron and chromium impurities in aluminum nitride
+Each HDF5 file corresponds to a particular defect supercell calculation and contains structure, parameters, code, and observables.
 
 ## File Naming
 
 Each file is named:
 
-`<system>_<natoms>_atoms.h5`
+`<system>_<natoms>_atoms_<calculation_type>.h5`
 
 ## HDF5 Layout
 
@@ -15,9 +15,9 @@ Each file is named:
 `/species/` : atomic species in the defect system
 `/formula/` : chemical formula with charge for the defect system
 `/natoms/` : number of atoms in the supercell for the defect system
-`/calculation_type/` : type of calculation done for the defect
+`/calculation_type/` : type of calculation done for the defect ('CASCI' or 'QMC')
 
-`/observables/<wf_type>/` : QMC-computed ground and excited state observables for each wave function type.
+`/observables/<wf_type>/` : computed ground and excited state observables for each wave function type.
     - `/observables/<wf_type>/eigenstate` : eigenstate indices
     - `/observables/<wf_type>/total_energy` : eigenstate total energy means
     - `/observables/<wf_type>/total_energy_error` : eigenstate total energy standard errors
@@ -67,7 +67,7 @@ Each file is named:
     - `/parameters/ensemble_optimization/defect_basis_only` : specifies whether to restrict the density matrix calculations to the defect orbital subspace
     - `/parameters/ensemble_optimization/include_rdm2` : specifies whether the two-body density matrices were included in the VMC  
         
-`/code/` : scripts and outputs in the QMC calculation workflow    
+`/code/` : scripts and outputs in the calculation workflow    
         - `/code/generate_symmops_python_script` : Python script used to generate symmetry representations in the defect orbitals
         - `/code/average_qmc_python_script` : Python script used to average the QMC data
         - `/code/gather_observables_python_script` : Python code containing functionals used to gather the QMC observables
