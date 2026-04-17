@@ -33,15 +33,17 @@ def fill_attrs(
         "CASCI": "CASCI",
         "QMC": "VMC",
     }
-    f["system"] = system
-    f["formula"] = formulas[f"{system}_{nat}_atoms"]
-    f["natoms"] = nat
-    f["species"] = species[system]
-    f["calculation_type"] = calculation_type
-    f["method"] = methods[calculation_type]
-    f["author"] = ["Kevin G. Kleiner", "Lucas K. Wagner"]
-    f["creation_date"] = datetime.datetime.now().isoformat()
-    f["uuid"] = str(uuid.uuid4())
+    uuid_number = str(uuid.uuid4())
+    f.attrs.create("system", system)
+    f.attrs.create("formula", formulas[f"{system}_{nat}_atoms"])
+    f.attrs.create("natoms", nat)
+    f.attrs.create("species", species[system])
+    f.attrs.create("calculation_type", calculation_type)
+    f.attrs.create("method", methods[calculation_type])
+    f.attrs.create("author", ["Kevin G. Kleiner", "Lucas K. Wagner"])
+    f.attrs.create("creation_date", datetime.datetime.now().isoformat())
+    f.attrs.create("uuid", uuid_number)
+    return uuid_number
 
 
 def fill_parameters(f, system, nat, basis, calculation_type):
@@ -105,17 +107,20 @@ def fill_parameters(f, system, nat, basis, calculation_type):
 def fill_code(f, calculation_type):
     code = f.create_group("code")
     dft_casci = code.create_group("dft_casci")
-    dft_casci["name"] = "pyscf"
-    dft_casci["dependencies"] = ["numpy", "scipy", "h5py", "setuptools"]
-    dft_casci["system"] = "Illinois Campus Cluster"
-    dft_casci["version"] = "2.12.0"
-    dft_casci["modules"] = [
-        "module load anaconda3",
-        "module load openmpi",
-        "module load gcc",
-    ]
-    dft_casci["OMP_NUM_THREADS"] = 8
-    dft_casci["MKL_NUM_THREADS"] = 8
+    dft_casci.attrs.create("name", "pyscf")
+    dft_casci.attrs.create("dependencies", ["numpy", "scipy", "h5py", "setuptools"])
+    dft_casci.attrs.create("system", "Illinois Campus Cluster")
+    dft_casci.attrs.create("version", "2.12.0")
+    dft_casci.attrs.create(
+        "modules",
+        [
+            "module load anaconda3",
+            "module load openmpi",
+            "module load gcc",
+        ],
+    )
+    dft_casci.attrs.create("OMP_NUM_THREADS", 8)
+    dft_casci.attrs.create("MKL_NUM_THREADS", 8)
     with open("submit_dft.py", "r", encoding="utf-8") as submit_f:
         dft_casci["dft_submit_script"] = submit_f.read()
     with open("run_dft.py", "r", encoding="utf-8") as input_f:
@@ -135,24 +140,27 @@ def fill_code(f, calculation_type):
         )
         ensemble_optimization = qmc.create_group("ensemble_optimization")
         vmc = qmc.create_group("vmc")
-        qmc["name"] = "pyqmc"
-        qmc["dependencies"] = [
-            "numpy",
-            "scipy",
-            "h5py",
-            "setuptools",
-            "pyscf",
-            "pandas",
-            "python-dateutil",
-            "pytz",
-            "tzdata",
-            "six",
-        ]
-        qmc["version"] = "0.6.0"
-        qmc["parallelization"] = "mpi4py"
-        qmc["OMP_NUM_THREADS"] = 1
-        qmc["MKL_NUM_THREADS"] = 1
-        qmc["NUMEXPR_NUM_THREADS"] = 1
+        qmc.attrs.create("name", "pyqmc")
+        qmc.attrs.create(
+            "dependencies",
+            [
+                "numpy",
+                "scipy",
+                "h5py",
+                "setuptools",
+                "pyscf",
+                "pandas",
+                "python-dateutil",
+                "pytz",
+                "tzdata",
+                "six",
+            ],
+        )
+        qmc.attrs.create("version", "0.6.0")
+        qmc.attrs.create("parallelization", "mpi4py")
+        qmc.attrs.create("OMP_NUM_THREADS", 1)
+        qmc.attrs.create("MKL_NUM_THREADS", 1)
+        qmc.attrs.create("NUMEXPR_NUM_THREADS", 1)
         ground_state_jastrow_optimization["system"] = "Illinois Campus Cluster"
         ensemble_optimization["system"] = "Aurora"
         vmc["system"] = "Aurora"
@@ -279,15 +287,21 @@ def generate_h5(system, nat):
         "QMC": fill_observables_qmc,
     }
     basis = "vqz"
+    uuid_numbers = {}
     for calculation_type in ["CASCI", "QMC"]:
         fname = f"{system}_{nat}_atoms_{calculation_type}.h5"
         print(f"Generating {fname}")
         with h5py.File(fname, "w") as f:
-            fill_attrs(f, system, nat, calculation_type)
+            uuid_number = fill_attrs(f, system, nat, calculation_type)
+            uuid_numbers[calculation_type] = uuid_number
             fill_code(f, calculation_type)
             fill_structure(f, system, nat)
             fill_parameters(f, system, nat, basis, calculation_type)
             fill_observables_function[calculation_type](f, system, nat, basis)
+            if calculation_type == "QMC":
+                provenance = f.create_group("provenance")
+                provenance["dependent_uuids"] = [uuid_numbers["CASCI"]]
+                uuid_numbers = {}
 
 
 if __name__ == "__main__":
