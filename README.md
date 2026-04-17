@@ -166,3 +166,83 @@ In this section, enter data that may be necessary to
 | Dataset            | Shape  | Description            |
 | ------------------ | ------ | ---------------------- |
 | `dependent_uuids`     | string [] | uuids of reference DFT calculations, for example, or  |
+
+---
+
+## Upload, View, and Restore HDF5 Files
+
+This repository includes shared bucket utility scripts at the repository root:
+
+- `upload_h5_to_aws.sh`
+- `osn_check_and_restore_h5.sh`
+
+These are intended for all contributors uploading schema-compliant HDF5 files to:
+
+- `s3://phy240060/QMCHAMM/`
+
+### Prerequisites
+
+1. Python with `awscli` module available:
+   - scripts call `python3 -m awscli ...`
+2. Network access to OSN endpoint:
+   - `https://uri.osn.mghpcc.org`
+3. OSN credentials:
+   - RW key/secret for upload
+   - RO key/secret for list/check/restore
+
+### Upload all `.h5` files
+
+Run from repository root:
+
+```bash
+cd /projects/illinois/grants/qmchamm/shared/shubhang/aurora_backup/database_work/qmchamm_database
+bash upload_h5_to_aws.sh
+```
+
+The script will prompt:
+
+- `Source directory for .h5 upload [...]`
+
+Press Enter to use the default (repo root), or provide any folder path containing `.h5` files.
+
+Default behavior:
+
+- source directory: script directory
+- destination: `s3://phy240060/QMCHAMM/`
+- dry-run: enabled by default (`DO_DRYRUN=1`)
+
+Optional environment override:
+
+```bash
+SOURCE_DIR=/path/to/h5 \
+S3_BUCKET=s3://phy240060/QMCHAMM \
+OSN_ENDPOINT=https://uri.osn.mghpcc.org \
+DO_DRYRUN=1 \
+bash upload_h5_to_aws.sh
+```
+
+Set `DO_DRYRUN=0` to skip the dry-run.
+
+### List/check/restore files from bucket
+
+```bash
+bash osn_check_and_restore_h5.sh list
+bash osn_check_and_restore_h5.sh check
+bash osn_check_and_restore_h5.sh restore-missing
+bash osn_check_and_restore_h5.sh restore-file <uuid>.h5
+```
+
+Optional override example:
+
+```bash
+SOURCE_DIR=/path/to/local_h5 \
+S3_BUCKET=s3://phy240060/QMCHAMM \
+OSN_ENDPOINT=https://uri.osn.mghpcc.org \
+bash osn_check_and_restore_h5.sh check
+```
+
+### Security notes
+
+- Credentials are requested interactively and are not stored in scripts.
+- Credentials are exported only in the current process and unset at script end.
+The keys for the RW and RO credentials can be accessed here https://coldfront.osn.mghpcc.org/project/329/
