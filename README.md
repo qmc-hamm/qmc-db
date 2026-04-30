@@ -245,4 +245,7 @@ bash osn_check_and_restore_h5.sh check
 
 - Credentials are requested interactively and are not stored in scripts.
 - Credentials are exported only in the current process and unset at script end.
-The keys for the RW and RO credentials can be accessed here https://coldfront.osn.mghpcc.org/project/329/
+The keys for the RW and RO credentials can be accessed here https://coldfront.osn.mghpcc.org/allocation/744/
+
+The parent coldfront allocation for our project is the following
+https://coldfront.osn.mghpcc.org/project/329/
