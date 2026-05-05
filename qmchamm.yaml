@@ -1,0 +1,13 @@
+sources:
+  qmchamm_v1:
+    driver: csv
+    args:
+      urlpath: 's3://phy240060/QMCHAMM/catalog.csv'
+      storage_options:
+        anon: false
+        endpoint_url: 'https://uri.osn.mghpcc.org'
+
+    description: "QMC HAMM Data"
+    metadata:
+      origin: "Example data"
+      version: "1.0"
