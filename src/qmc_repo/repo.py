@@ -1,5 +1,10 @@
 """Repository access for QMC configuration datasets."""
+import os.path
+from pathlib import Path
 
+from contextlib import contextmanager
+
+import h5py
 import intake
 import s3fs
 
@@ -62,3 +67,41 @@ class Repo:
             The corresponding attribute from the catalog.
         """
         return getattr(self.catalog, name)
+
+    @contextmanager
+    def open_h5(self, s3_uri):
+        """
+        Open an HDF5 file from S3 using s3fs and yield it for reading.
+
+        Args:
+            s3_uri: The S3 URI of the HDF5 file to open.
+
+        Yields:
+            h5: The opened h5py.File object for reading the HDF5 file.
+        """
+        f = self.fs.open(s3_uri, "rb")
+        try:
+            h5 = h5py.File(f, "r")
+            try:
+                yield h5
+            finally:
+                h5.close()
+        finally:
+            f.close()
+
+    def download_hdf5(self, uri: str, path: str):
+        """
+        Download an HDF5 file from S3 to a local path.
+
+        Args:
+            uri: The S3 URI of the HDF5 file to download.
+            path: The local path to save the downloaded file. It will be stored
+                  in this directory with the original name of the file.
+        """
+        os.makedirs(path, exist_ok=True)
+        result_path = Path(path) / Path(uri).name
+        with self.fs.open(uri, "rb") as f:
+            with open(os.path.join(path, result_path), "wb") as out:
+                out.write(f.read())
+
+        return result_path
