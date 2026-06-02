@@ -15,6 +15,7 @@ import csv
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import uuid
 from pathlib import Path
@@ -531,7 +532,7 @@ def _write_dft_file(
     obs = _parse_scf_out(scf_out)
     p2 = _collect_dft_prep_files(run_folder)
 
-    temp = out_dir / "dft_tmp.h5"
+    temp = out_dir / f"dft_tmp_{os.getpid()}_{uuid.uuid4().hex}.h5"
     with h5py.File(temp, "w") as h5:
         _root_attrs(h5, xyz, calculation_type="scf", method="DFT", method_kws=[params.get("input_dft", "pbe")])
         ptc = _infer_ptc_from_run_name(run_folder)
@@ -615,7 +616,7 @@ def _write_method_file(
     pseudo_map: Dict[str, bytes],
 ) -> Tuple[str, Path]:
     method_lower = method.lower()
-    temp = out_dir / f"{method_lower}_tmp.h5"
+    temp = out_dir / f"{method_lower}_tmp_{os.getpid()}_{uuid.uuid4().hex}.h5"
     hdr = xyz["header"]
 
     # Best available scalar energies from metadata.
