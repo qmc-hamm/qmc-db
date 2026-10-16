@@ -5,9 +5,10 @@ This brief is the operating manual for converting Ilnur’s raw high-pressure
 hydrogen calculations on Leonardo into the QMC-HAMM HDF5 database and
 uploading the new files to Open Storage Network (OSN).
 
-**Written:** 2026-10-16  
+**Written:** 2026-10-16, layout confirmed from the folder-12 example the same day  
 **Owner:** Shubhang Goswami (`sgoswam3`)  
 **Repo you are in:** https://github.com/qmc-hamm/qmc-db  
+**Converter (other repo):** https://github.com/qmc-hamm/configurations — `ilnur_to_hdf5.py`  
 **Companion schema prose:** `README.md` (same directory)  
 **Reference writers already in this repo:**
 
@@ -26,9 +27,8 @@ and finite-size-correction convention from those writers.
 You are on Leonardo, logged in as the user who has Ilnur’s raw hydrogen data.
 Your job is:
 
-1. Find the raw data tree (the human will point you at a folder, or you search
-   under the usual Leonardo project/scratch areas for Ilnur / `isaitov` /
-   `HYDROGEN` / `HP_dataset`).
+1. Read `/leonardo_work/EUHPC_E05_077/ILNUR/Dataset` (§0.1). Do not search
+   the home directory unless that path is missing.
 2. Inventory every calculation in that tree before writing any HDF5.
 3. Convert **each energy/force evaluation of each configuration** into one
    schema-compliant `{uuid}.h5`.
@@ -77,6 +77,118 @@ Design rules:
 
 Those files must not be regenerated or re-uploaded from Leonardo.
 Ilnur is a **new** `source_dataset`.
+
+---
+
+## 0.1 Confirmed raw tree and the converter
+
+The dataset root on Leonardo is:
+
+```
+/leonardo_work/EUHPC_E05_077/ILNUR/Dataset
+```
+
+Condition directories are named:
+
+```
+<PHASE>_<CEIMC|DFT>_<T>K_<P>GPa
+<PHASE>_<CEIMC|DFT>_<T>K_RS<rs>     # DFT fluid, no nominal pressure
+```
+
+Each numbered subdirectory (`12`, `3`, …) is **one configuration**. The example
+shipped to Illinois is config `12` of `C2C_CEIMC_290K_350GPa`, stored at
+`database_work/12` on the campus cluster.
+
+`CEIMC` or `DFT` in the **directory name** is still only the creation path.
+The QMC energy in that folder is DMC. Write `method=DMC`.
+
+The converter that already matches this layout is **not** in this git repo. It
+lives in the configurations checkout:
+
+```
+database_work/configurations/ilnur_to_hdf5.py
+```
+
+Tested on `database_work/12` (2026-10-16). It writes DFT + VMC + DMC:
+
+| Check | Result |
+|---|---|
+| DMC `total_energy` vs `vmc_dmc_sm_12.xyz` `energy` | −1339.605388 vs −1339.604899 eV (0.5 meV) |
+| DMC forces vs the xyz `forces` column | exact |
+| VMC `total_energy` vs `En_VMC_ev` | −1347.178792 vs −1347.179439 eV |
+| `rs` | 1.313869 bohr (input log says 1.3139) |
+| `qmc_quality` | 10 on VMC and DMC, absent on DFT |
+| DFT virial pressure | 334.0 GPa (nominal label 350 GPa) |
+| S(k) | 345 shells from `12.sk` on the DMC file |
+
+```bash
+python3 ilnur_to_hdf5.py /path/to/12 --out ./ilnur_test
+python3 ilnur_to_hdf5.py /leonardo_work/EUHPC_E05_077/ILNUR/Dataset --out ./ilnur_database
+```
+
+UUIDs are `uuid5` of `ilnur:<prefix>:<METHOD>`, so a rerun replaces the same
+file. Output folders are `P<P>T<T>/` or `PnaT<T>/` when the condition is an
+`RS` label.
+
+### Files inside one configuration folder
+
+| File | Role |
+|---|---|
+| `vmc_dmc_sm_<id>.xyz` | Published frame. Lattice and positions in Å. `energy` is the **smoothed-FSC DMC total in eV**. `fsc_dv_ev`, `fsc_dt_ev` in eV. `En_VMC_ev`. Forces columns: `forces` (extrapolated, this is what the DMC file stores), `forces_DMC`, `forces_VMC`, all eV/Å. `prefix=CEIMC-C2CT290P350-config-12-dmc`. |
+| `data_<id>.xyz` | Same geometry with the **unsmoothed** FSC. Kept in provenance, not used as the stored total. |
+| `fsc_final_smoothed.txt` | `dV dT` in Hartree. × 27.211386245988 eV/Ha matches the smoothed xyz header. **This is the correction that is added.** |
+| `fsc_final.txt` | Unsmoothed `dV dT` in Hartree. |
+| `qmc_scalardata_<id>.h5` | Pandas table, one row per block. Columns include `LocalEnergy`, `Kinetic`, `LocalPotential` (Hartree), `force_<atom>_<xyz>` (Ha/bohr), `twist_number`, `calculation` (`VMC` or `DMC`). Folder 12 has 108 twists; VMC has 392 blocks, DMC 256. The writer drops the first 32 blocks per twist, then equal-weight averages twists. |
+| `dmc_<id>.g000.twistnum_0.in.xml` | QMCPACK input. Lattice in bohr. VMC `blocks/steps/timestep/samples`, DMC `blocks/steps/timestep/targetwalkers`. Representative twist, not all 108 inputs. |
+| `scf_<id>.in`, `scf_<id>.out` | Quantum ESPRESSO PBE SCF. Cutoffs in the input are Ry (`ecutwfc=200`, `ecutrho=800` in the example). Forces in the output are Ry/bohr. The kbar stress columns have trace/3 = +P; the writer flips the sign so archive `P = -Tr(stress)/3`. |
+| `<id>.sk` | Three columns: \|k\| (bohr⁻¹), S(k), error. Stored on the DMC file as `structure_factor`, `structure_factor_error`, `structure_factor_k`. Cartesian k-vectors are not in the file (`structure_factor_ks` is empty). |
+| `opt/opt_<id>.out` | QMCPACK banner. The example is **QMCPACK 4.1.0**, complex build, 864 MPI ranks. |
+
+DMC stored energy = twist-averaged `LocalEnergy` (Ha→eV) + smoothed Δv + smoothed Δt.
+That is the same convention as the rest of the archive (`total_energy` is corrected).
+
+### Condition folders in this Dataset
+
+Creation path `CEIMC` unless the name says `DFT`. No `M29` directories are in
+this listing (the older XYZ export had 323 M29 frames; they are not here).
+
+```
+C2C_CEIMC_200K_250GPa      CMCA12_CEIMC_290K_500GPa   PC48_CEIMC_800K_350GPa
+C2C_CEIMC_200K_300GPa      CSIV_CEIMC_200K_400GPa     PC48_DFT_400K_275GPa
+C2C_CEIMC_200K_350GPa      CSIV_CEIMC_200K_450GPa     PC48_DFT_400K_325GPa
+C2C_CEIMC_200K_400GPa      CSIV_CEIMC_200K_500GPa     PC48_DFT_400K_375GPa
+C2C_CEIMC_200K_450GPa      CSIV_CEIMC_200K_550GPa     PC48_DFT_400K_400GPa
+C2C_CEIMC_200K_500GPa      CSIV_CEIMC_200K_600GPa     PC48_DFT_480K_275GPa
+C2C_CEIMC_290K_250GPa      CSIV_DFT_200K_600GPa       PC48_DFT_480K_325GPa
+C2C_CEIMC_290K_300GPa      FLUID_DFT_600K_RS1.35      PC48_DFT_480K_375GPa
+C2C_CEIMC_290K_350GPa      FLUID_DFT_600K_RS1.37      PC48_DFT_480K_400GPa
+C2C_CEIMC_290K_400GPa      FLUID_DFT_600K_RS1.39      PC48_DFT_600K_275GPa
+C2C_CEIMC_290K_450GPa      FLUID_DFT_600K_RS1.41      PC48_DFT_600K_325GPa
+C2C_CEIMC_290K_500GPa      FLUID_DFT_600K_RS1.43      PC48_DFT_600K_375GPa
+CMCA12_CEIMC_200K_250GPa   FLUID_DFT_675K_RS1.37      PC48_DFT_600K_400GPa
+CMCA12_CEIMC_200K_300GPa   FLUID_DFT_675K_RS1.39      PC48_DFT_800K_275GPa
+CMCA12_CEIMC_200K_350GPa   FLUID_DFT_675K_RS1.41      PC48_DFT_800K_325GPa
+CMCA12_CEIMC_200K_400GPa   FLUID_DFT_675K_RS1.43      PC48_DFT_800K_375GPa
+CMCA12_CEIMC_200K_450GPa   FLUID_DFT_675K_RS1.45      PC48_DFT_800K_400GPa
+CMCA12_CEIMC_200K_500GPa   FLUID_DFT_800K_RS1.37      PC48_CEIMC_430K_250GPa
+CMCA12_CEIMC_290K_250GPa   FLUID_DFT_800K_RS1.39      PC48_CEIMC_430K_300GPa
+CMCA12_CEIMC_290K_300GPa   FLUID_DFT_800K_RS1.41      PC48_CEIMC_430K_350GPa
+CMCA12_CEIMC_290K_350GPa   FLUID_DFT_800K_RS1.43      PC48_CEIMC_480K_250GPa
+CMCA12_CEIMC_290K_400GPa   FLUID_DFT_800K_RS1.45      PC48_CEIMC_480K_300GPa
+CMCA12_CEIMC_290K_450GPa   FLUID_DFT_900K_RS1.41      PC48_CEIMC_480K_350GPa
+                           FLUID_DFT_900K_RS1.43      PC48_CEIMC_600K_250GPa
+                           FLUID_DFT_900K_RS1.45      PC48_CEIMC_600K_300GPa
+                                                      PC48_CEIMC_600K_350GPa
+                                                      PC48_CEIMC_800K_250GPa
+                                                      PC48_CEIMC_800K_300GPa
+```
+
+`compress.sh` in that directory is not data. Skip it.
+`FLUID_DFT_*_RS*` folders have no nominal pressure: omit root `pressure`.
+
+There is also a `FLUID_DFT_600K_RS1.35` through `RS1.45` set and a
+`FLUID_DFT_675K_RS1.37` set; ingest every numbered config under every
+condition folder, not only the 4,717-frame XYZ overlay.
 
 Illinois on-disk copies (you generally cannot see these from Leonardo):
 
@@ -542,12 +654,16 @@ with h5py.File(f"{uid}.h5", "w") as h5:
 
 ## 5. How to find and read the raw tree
 
-Do this before any conversion.
+The root is `/leonardo_work/EUHPC_E05_077/ILNUR/Dataset`. Use
+`configurations/ilnur_to_hdf5.py` (§0.1) instead of writing a second parser.
+Run it on one numbered folder first, then on the Dataset root.
 
-1. Ask the human which directory is Ilnur’s if it is ambiguous. Likely clues:
-   account or group `isaitov`, directory names `HYDROGEN`, `HP_dataset`,
-   `HP_dataset_01`, files `dataset_smfsc_ceimc_dft.xyz`,
-   `dataset_smfsc_m29.xyz`, prefixes `CEIMC-`, `DFT-`, `M29-`.
+Historical Delta XYZ paths (`/work/hdd/bcqo/isaitov/HYDROGEN/HP_dataset_01/`)
+are only the coverage-plot export. They are not this tree.
+
+1. Ask the human which directory is Ilnur’s only if that Dataset path is
+   missing. Clues: `ILNUR/Dataset`, condition folders
+   `C2C_CEIMC_*`, `FLUID_DFT_*K_RS*`.
 2. `find` that root for: `*.xyz`, `*.in.xml`, `*.struct.xyz`, `qmc_scalardata*.h5`,
    `*energycorrections*`, `scalar.dat`, `*.wfs.xml`, `pw.x` outputs (`*.out`),
    `UPF` / pseudopotentials. Record counts. Do not descend into huge

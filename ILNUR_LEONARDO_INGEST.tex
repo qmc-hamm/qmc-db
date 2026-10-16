@@ -201,6 +201,26 @@ After upload, Illinois still needs a copy of \texttt{ilnur\_database/},
 \texttt{HP\_dataset\_ilnur\_coverage}. Leave those as explicit follow-ups
 in \texttt{report.md} if Illinois is not mounted.
 
+\section{Confirmed Leonardo layout}
+Dataset root:
+\begin{verbatim}
+/leonardo_work/EUHPC_E05_077/ILNUR/Dataset
+\end{verbatim}
+Condition folders look like \texttt{C2C\_CEIMC\_290K\_350GPa} or
+\texttt{FLUID\_DFT\_600K\_RS1.35}. Each numbered subdirectory is one
+configuration. The Illinois example is config \texttt{12} of
+\texttt{C2C\_CEIMC\_290K\_350GPa} (\texttt{database\_work/12}).
+
+The converter is \texttt{ilnur\_to\_hdf5.py} in the configurations repository
+(\url{https://github.com/qmc-hamm/configurations}), not in \texttt{qmc-db}.
+It writes DFT, VMC, and DMC. On that example the DMC total matches
+\texttt{vmc\_dmc\_sm\_12.xyz} to 0.5~meV, the stored forces match the xyz
+\texttt{forces} column, $r_s=1.313869$, and \texttt{qmc\_quality} is 10.
+Smoothed \texttt{fsc\_final\_smoothed.txt} (Hartree) is the finite-size
+correction that is added. \texttt{qmc\_scalardata\_*.h5} supplies the twist
+averages after dropping 32 equilibration blocks. \texttt{<id>.sk} is
+$|k|$, $S(k)$, error.
+
 \section{Order of work}
 \begin{enumerate}
 \item Record the raw-root path.

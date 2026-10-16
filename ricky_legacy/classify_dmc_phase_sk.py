@@ -146,42 +146,48 @@ def pct(series: pd.Series, q: float) -> float:
 
 
 def build_thresholds(ref_df: pd.DataFrame) -> Dict[str, float]:
+    """Relaxed cuts from reference extrema.
+
+    solid  if S_max >  min(S_max of unambiguous solids)
+    liquid if S_max <  max(S_max of clear liquids)
+    else ambiguous
+
+    Clear liquids = SG/Aurora phase=liquid refs with no strong Bragg peaks
+    (n_SgtN4 == 0), so high-S mislabels do not inflate the liquid ceiling.
+    """
     solid = ref_df[ref_df["ref_class"] == "solid"]
     liquid = ref_df[ref_df["ref_class"] == "liquid"]
+    clear_liquid = liquid[liquid["n_SgtN4"] == 0]
+    if clear_liquid.empty:
+        clear_liquid = liquid
+
     thr = {
+        "min_unambiguous_solid_S_max": float(solid["S_max"].min()),
+        "max_clear_liquid_S_max": float(clear_liquid["S_max"].max()),
+        "n_solid_refs": int(len(solid)),
+        "n_liquid_refs": int(len(liquid)),
+        "n_clear_liquid_refs": int(len(clear_liquid)),
+        # kept for backwards-compatible logging
         "solid_S_max_p5": pct(solid["S_max"], 5),
-        "solid_n10_p5": pct(solid["n_Sgt10"], 5),
-        "solid_nN4_p5": pct(solid["n_SgtN4"], 5),
         "liquid_S_max_p95": pct(liquid["S_max"], 95),
-        "liquid_S_max_p995": pct(liquid["S_max"], 99.5),
-        "liquid_n10_p95": pct(liquid["n_Sgt10"], 95),
-        "liquid_n10_p995": pct(liquid["n_Sgt10"], 99.5),
-        "liquid_nN4_p995": pct(liquid["n_SgtN4"], 99.5),
     }
-    # Clear solid must beat essentially all known liquids.
-    thr["clear_solid_S_max"] = float(max(thr["liquid_S_max_p995"], 15.0))
-    thr["clear_solid_n10"] = float(max(thr["liquid_n10_p995"], 3.0))
-    # Clear liquid must sit in the liquid bulk and below the solid floor.
-    thr["clear_liquid_S_max"] = float(min(thr["solid_S_max_p5"] * 0.7, thr["liquid_S_max_p95"]))
-    thr["clear_liquid_n10"] = float(thr["liquid_n10_p95"])
+    if thr["max_clear_liquid_S_max"] >= thr["min_unambiguous_solid_S_max"]:
+        print(
+            "WARNING: clear-liquid max >= solid min; ambiguous band is empty/inverted. "
+            f"liquid_max={thr['max_clear_liquid_S_max']:.4f} "
+            f"solid_min={thr['min_unambiguous_solid_S_max']:.4f}",
+            flush=True,
+        )
     return thr
 
 
 def classify(s_max: float, n10: int, n_n4: int, thr: Dict[str, float]) -> str:
-    if (
-        (s_max >= thr["clear_solid_S_max"] and n10 >= thr["clear_solid_n10"])
-        or (n_n4 >= 2 and s_max >= thr["clear_solid_S_max"])
-    ):
+    """n10/n_n4 kept for API compatibility; relaxed rule uses S_max only."""
+    solid_cut = thr["min_unambiguous_solid_S_max"]
+    liquid_cut = thr["max_clear_liquid_S_max"]
+    if s_max > solid_cut:
         return "solid"
-    if s_max <= thr["clear_liquid_S_max"] and n10 <= thr["clear_liquid_n10"] and n_n4 == 0:
-        return "liquid"
-    # Secondary liquid: no strong Bragg peaks and well below solid floor.
-    if (
-        n_n4 == 0
-        and s_max <= thr["liquid_S_max_p95"]
-        and n10 <= max(2.0, thr["liquid_n10_p95"])
-        and s_max < thr["solid_S_max_p5"] * 0.7
-    ):
+    if s_max < liquid_cut:
         return "liquid"
     return "ambiguous"
 
@@ -191,7 +197,7 @@ def stamp_one(args_tuple):
     path, phase = args_tuple
     with h5py.File(path, "a") as handle:
         handle.attrs["phase"] = phase
-        handle.attrs["phase_source"] = "sk_vs_refs_v1"
+        handle.attrs["phase_source"] = "sk_vs_refs_v2_minmax"
     return phase
 
 
@@ -207,6 +213,58 @@ def apply_labels(dmc_df: pd.DataFrame, workers: int = 16) -> None:
     print("applied counts:", counts, flush=True)
 
 
+def reclassify_from_existing(out: Path, apply: bool, workers: int) -> int:
+    """Recompute labels from saved S(k) CSVs with the relaxed min/max rule."""
+    ref_path = out / "reference_Sk_metrics.csv"
+    dmc_path = out / "dmc_Sk_metrics_classified.csv"
+    if not ref_path.exists() or not dmc_path.exists():
+        raise SystemExit(f"need {ref_path} and {dmc_path}")
+
+    ref_df = pd.read_csv(ref_path)
+    dmc_df = pd.read_csv(dmc_path)
+    thr = build_thresholds(ref_df)
+    (out / "thresholds.json").write_text(json.dumps(thr, indent=2))
+    print("relaxed thresholds:", json.dumps(thr, indent=2), flush=True)
+
+    ref_df["pred"] = [
+        classify(float(r.S_max), int(r.n_Sgt10), int(r.n_SgtN4), thr)
+        for r in ref_df.itertuples()
+    ]
+    confusion = pd.crosstab(ref_df["ref_class"], ref_df["pred"])
+    print("reference self-classification:\n", confusion.to_string(), flush=True)
+
+    old = dmc_df["phase_pred"].copy() if "phase_pred" in dmc_df.columns else None
+    dmc_df["phase_pred"] = [
+        classify(float(r.S_max), int(r.n_Sgt10), int(r.n_SgtN4), thr)
+        for r in dmc_df.itertuples()
+    ]
+    dmc_df.to_csv(dmc_path, index=False)
+    print("DMC phase_pred counts:\n", dmc_df["phase_pred"].value_counts().to_string(), flush=True)
+    if old is not None:
+        print("vs previous labels:\n", pd.crosstab(old, dmc_df["phase_pred"]).to_string(), flush=True)
+    dmc_df["Tbin"] = (pd.to_numeric(dmc_df["temperature"], errors="coerce") / 200).round() * 200
+    print("by T bin:\n", pd.crosstab(dmc_df["Tbin"], dmc_df["phase_pred"]).to_string(), flush=True)
+
+    summary = {
+        "n_dmc": int(len(dmc_df)),
+        "counts": dmc_df["phase_pred"].value_counts().to_dict(),
+        "thresholds": thr,
+        "ref_confusion": confusion.to_dict(),
+        "rule": "solid if S_max > min(unambiguous solid); "
+                "liquid if S_max < max(clear liquid n_SgtN4==0); else ambiguous",
+        "solid_refs": "BOPIMC hcp (Ilnur CEIMC xyz not available on this filesystem; "
+                      "SG aurora has no crystal-phase labels)",
+        "liquid_refs": "Aurora/SG EXTXYZ phase=liquid, clear subset n_SgtN4==0",
+    }
+    (out / "classification_summary.json").write_text(json.dumps(summary, indent=2, default=str))
+
+    if apply:
+        print("writing phase attrs onto DMC HDF5 files...", flush=True)
+        apply_labels(dmc_df, workers=workers)
+    print("DONE reclassify", json.dumps(summary["counts"]), flush=True)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", type=Path, default=DEFAULT_INDEX)
@@ -218,11 +276,17 @@ def main() -> int:
     parser.add_argument("--apply-only", action="store_true",
                         help="skip recomputation; stamp phases from an existing "
                              "dmc_Sk_metrics_classified.csv under --out")
+    parser.add_argument("--reclassify-relaxed", action="store_true",
+                        help="re-label from existing S(k) CSVs using min-solid / "
+                             "max-clear-liquid thresholds (no S(k) recompute)")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
     print(f"OPENBLAS_NUM_THREADS={os.environ.get('OPENBLAS_NUM_THREADS')}", flush=True)
     print(f"workers={args.workers}", flush=True)
+
+    if args.reclassify_relaxed:
+        return reclassify_from_existing(args.out, apply=args.apply, workers=args.workers)
 
     if args.apply_only:
         csv_path = args.out / "dmc_Sk_metrics_classified.csv"

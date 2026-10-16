@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import csv
 import fcntl
+import hashlib
 import json
 import os
 import shutil
@@ -139,20 +140,38 @@ def load_index(path: Path) -> List[dict]:
 
 def plan(rows: List[dict], remote: Dict[str, int],
          registry: Dict[str, dict]) -> Tuple[List[dict], dict]:
-    """Split the index into what still needs uploading and why the rest doesn't."""
+    """Split the index into what still needs uploading and why the rest doesn't.
+
+    Local file size on disk is authoritative. The index size/sha can lag behind
+    in-place edits (e.g. stamping a new root attr), so a size mismatch between
+    disk and the cached index triggers a rehash before deciding.
+    """
     todo: List[dict] = []
     stats = {"in_bucket": 0, "size_mismatch": 0, "dup_content": 0,
-             "missing_local": 0, "to_upload": 0}
+             "missing_local": 0, "to_upload": 0, "rehashed": 0}
     seen_hash: Dict[str, str] = {}
 
     for r in rows:
         key = f"{r['uuid']}.h5"
-        size = int(r["size_bytes"])
-        sha = r["sha256"]
-
-        if not Path(r["path"]).exists():
+        path = Path(r["path"])
+        if not path.exists():
             stats["missing_local"] += 1
             continue
+
+        disk_size = path.stat().st_size
+        index_size = int(r["size_bytes"])
+        if disk_size != index_size:
+            # File changed since the index was built (phase stamp, etc.).
+            h = hashlib.sha256()
+            with open(path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+            r["sha256"] = h.hexdigest()
+            r["size_bytes"] = str(disk_size)
+            stats["rehashed"] += 1
+
+        size = int(r["size_bytes"])
+        sha = r["sha256"]
 
         if key in remote:
             if remote[key] == size:

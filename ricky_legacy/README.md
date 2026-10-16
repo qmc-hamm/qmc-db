@@ -58,9 +58,8 @@ aurora_backup/ricky_legacy_database/build_database_ledger.txt
   and carry `provenance/stress_sign_convention_flipped = True`.
 * **Classical MD** (`f54-hs1`) is included, distinguished by the `ensemble`,
   `quantum_ions` and `config_dft` root attributes.
-* **Phase.** All legacy DMC configs and the BOPIMC DFT set are labeled
-  `phase="hcp"`. Ionic S(k) on sampled DMC frames shows solid-like Bragg peaks
-  (S_max often 20–40, comparable to BOPIMC), especially at T ≲ 1200 K.
+* **Phase.** Ricky DMC: `phase` stamped from ionic S(k) classifier
+  (`solid`→`hcp`, `liquid`, `ambiguous`). BOPIMC DFT set: `phase="hcp"`.
 
 ## Scripts
 
