@@ -1,0 +1,225 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+
+\title{Ilnur hydrogen data: ingest brief for Leonardo}
+\author{Shubhang Goswami (sgoswam3)}
+\date{16 October 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Operating manual for an agent on Leonardo that converts Ilnur's raw
+high-pressure hydrogen calculations into the QMC-HAMM HDF5 database and
+uploads the new files to Open Storage Network. The machine-readable copy
+the agent should follow is \texttt{ILNUR\_LEONARDO\_INGEST.md} in the same
+directory of \url{https://github.com/qmc-hamm/qmc-db}. Schema prose is
+\texttt{README.md}. Reference writers are
+\texttt{shubhang\_hydrogen/create\_hdf5\_schema.py} and
+\texttt{ricky\_legacy/}.
+\end{abstract}
+
+\section{Mission}
+Find Ilnur's raw tree (account or path clues: \texttt{isaitov},
+\texttt{HYDROGEN}, \texttt{HP\_dataset}, files
+\texttt{dataset\_smfsc\_ceimc\_dft.xyz} and \texttt{dataset\_smfsc\_m29.xyz}).
+Inventory every calculation. Write one schema-compliant \texttt{\{uuid\}.h5}
+per energy/force evaluation. Validate against the 4{,}717-frame catalog below,
+which is a lower bound, not a cap. Upload only the new files to
+\begin{center}
+\texttt{s3://phy240060/QMCHAMM/\textit{uuid}.h5}
+\qquad endpoint \url{https://uri.osn.mghpcc.org}.
+\end{center}
+Leave a ledger, a local index, and a report.
+
+The archive already holds Aurora/SG (\texttt{source\_dataset=aurora\_sg},
+5{,}463 files) and Ricky legacy (\texttt{ricky\_legacy}, 54{,}123 files).
+Do not regenerate or re-upload those. Ilnur is a new source.
+
+\section{Decisions already made}
+\begin{enumerate}
+\item Prefix tokens \texttt{CEIMC}, \texttt{DFT}, and \texttt{M29} record how
+the ionic geometry was generated. Every frame in the known catalog ends in
+\texttt{-dmc}. The stored electronic-structure method is DMC:
+\texttt{method=DMC}, \texttt{calculation\_type=qmc}.
+Put the creation path in \texttt{method\_kws},
+\texttt{starting\_configuration\_model\_name}, and
+\texttt{provenance/config\_creation\_method}.
+\texttt{CEIMC} is not a legal value of \texttt{method}.
+\item The only DFT-only hydrogen set already in the archive is Ricky BOPIMC
+(\texttt{f15b\_bopimc}, 2{,}729 QE SCF frames, empty \texttt{dependent\_uuids}).
+It is unrelated. Write a DFT or VMC companion file only when that evaluation
+exists as a real output, then point DMC \texttt{dependent\_uuids} at it after
+a PBC geometry match. Basename matching is not sufficient.
+\item One HDF5 file is one evaluation of one geometry. Do not pack
+trajectories, twist grids, or NSCF/orbital-optimization steps into database rows.
+\item Stored \texttt{observables/total\_energy} is the finite-size-corrected
+value when a correction exists:
+\begin{verbatim}
+total_energy_uncorrected = total_energy
+    - (fsc_potential_energy + fsc_kinetic_energy)
+\end{verbatim}
+If the raw total is uncorrected and $\Delta v$, $\Delta t$ are known in eV,
+write $\mathrm{raw}+\Delta v+\Delta t$. Record which file supplied the deltas.
+If no correction exists, store the published total, set the FSC datasets to
+NaN, set \texttt{finite\_size\_corrected} false, and set \texttt{qmc\_quality=7}.
+\item Root \texttt{pressure} (GPa) is the nominal label (\texttt{P250} in the
+prefix). \texttt{observables/pressure} is the virial pressure of this
+evaluation. DFT-fluid \texttt{RS} series have no nominal pressure: omit it.
+Do not invent a pressure from $r_s$.
+\item Map source label \texttt{FLUID} to root \texttt{phase=liquid}. Keep
+\texttt{C2C}, \texttt{CMCA12}, \texttt{CSIV}, \texttt{PC48}. Also store
+\texttt{phase\_label\_raw}. Do not run the Ricky $S(k)$ classifier.
+\item Root $r_s$ is in bohr, computed from the stored cell
+(one electron per proton). A prefix \texttt{RS} label is provenance only.
+\item \texttt{author=Ilnur} unless the tree gives a fuller name.
+\texttt{source\_database=leonardo}, \texttt{source\_dataset=ilnur\_leonardo},
+\texttt{system=Hydrogen}, \texttt{formula=H}.
+\item Do not guess \texttt{quantum\_ions} from the word CEIMC.
+\end{enumerate}
+
+\section{Known catalog (lower bound)}
+An older extended-XYZ export on Delta, used only for coverage plots, was never
+converted to HDF5:
+\begin{verbatim}
+/work/hdd/bcqo/isaitov/HYDROGEN/HP_dataset_01/dataset_smfsc_ceimc_dft.xyz
+/work/hdd/bcqo/isaitov/HYDROGEN/HP_dataset_01/dataset_smfsc_m29.xyz
+\end{verbatim}
+Those paths are Delta, not Leonardo. Search by filename too.
+
+\begin{center}
+\begin{tabular}{lr}
+\toprule
+Item & Count \\
+\midrule
+Frames & 4717 \\
+CEIMC path & 2679 \\
+DFT path & 1715 \\
+M29 path & 323 \\
+96-atom frames & 4366 \\
+128-atom CSIV frames & 351 \\
+Frames with no nominal $P$ (DFT fluid) & 897 \\
+Cell $r_s$ & about 1.200 to 1.450 bohr \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Temperatures (K): 200, 290, 400, 430, 480, 600, 675, 800, 900, 1000, 1200,
+1400, 1600, 1800, 2000.
+Nominal pressures (GPa), when present: 250, 275, 300, 325, 350, 375, 400,
+450, 475, 500, 550, 600.
+
+Prefix grammar:
+\begin{verbatim}
+^(CEIMC|DFT|M29)-(.+)-config-(\d+)-dmc$
+\end{verbatim}
+Examples: \texttt{CEIMC-C2CT200P250-config-100-dmc},
+\texttt{DFT-FLUIDT600RS1.35-config-1-dmc},
+\texttt{M29-FLUIDT2000P450-config-12-dmc}.
+XYZ lattice is in \AA. Header keys the Aurora writer already parses include
+\texttt{Lattice}, \texttt{energy}, \texttt{fsc\_dv\_ev}, \texttt{fsc\_dt\_ev},
+\texttt{prefix}. Prefer the raw run directory over the XYZ when both exist.
+If a frame exists only as XYZ, still write HDF5 and lower \texttt{qmc\_quality}
+when forces or FSC evidence are missing.
+
+If the Leonardo tree contains additional real QMC evaluations, ingest those too.
+
+\section{Schema}
+Required groups: \texttt{parameters}, \texttt{code}, \texttt{structure},
+\texttt{observables}, \texttt{provenance}.
+
+Units: positions and lattice in \AA; energies in eV; forces in eV/\AA;
+stress in GPa as a $3\times 3$ matrix; pressure in GPa; temperature in K;
+$r_s$ in bohr; plane-wave cutoffs in \texttt{/parameters} in eV
+($\mathrm{Ry}\times 13.605693122994$).
+QMCPACK XML lattices are often in bohr. Convert before writing.
+ASE Voigt stress is often in eV/\AA$^3$ with stress $= -$pressure.
+If virial pressures are largely negative at $r_s<2$, flip the sign and set
+\texttt{provenance/stress\_sign\_convention\_flipped}.
+
+String lists (\texttt{dependent\_uuids}, \texttt{method\_kws}) are 1-D arrays,
+never scalar strings. \texttt{structure/xyz} is the extended XYZ of this frame
+only.
+
+DMC/VMC observables, all required (NaN or empty if unknown):
+\texttt{total\_energy} and \texttt{\_error}, kinetic and potential with errors,
+\texttt{forces} and \texttt{forces\_error} shaped $(1,N,3)$,
+empty structure-factor datasets if $S(k)$ is absent,
+\texttt{fsc\_potential\_energy}, \texttt{fsc\_kinetic\_energy},
+and the three uncorrected energies.
+\texttt{observables} attribute \texttt{finite\_size\_corrected}.
+Store twist averages, not a single twist.
+
+\texttt{qmc\_quality} on VMC/DMC only: 1 if energy or forces are missing;
+7 if a DMC energy exists without FSC evidence; 10 if energy, forces, and FSC
+evidence are all present. Never on DFT.
+
+Do not copy Aurora defaults (\texttt{kpoint\_grid=[6,6,6]},
+\texttt{time\_step=0.005}) into Ilnur files. Read the inputs.
+\texttt{/code}: name, version, input, truncated stdout,
+\texttt{system=leonardo}, \texttt{location} of the raw directory.
+Do not embed orbitals or walker dumps.
+
+Local layout suggestion:
+\texttt{ilnur\_database/P\textit{P}T\textit{T}/\{uuid\}.h5},
+and \texttt{PnaT\textit{T}} when nominal pressure is absent.
+
+Ledger columns:
+\texttt{source\_key}, \texttt{uuid}, relative path, sha256, bytes, status,
+\texttt{qmc\_quality}, timestamp.
+Stable key:
+\texttt{ilnur:\textit{relative-path}:\textit{frame}:dmc|vmc|dft}.
+Reruns must reuse the same uuid.
+
+\section{Validation and upload}
+Every file: required groups and root keys; filename matches \texttt{uuid};
+\texttt{source\_dataset=ilnur\_leonardo}; DMC/VMC have \texttt{qmc\_quality}
+in $\{1,7,10\}$ and a finite \texttt{total\_energy}; DFT has no
+\texttt{qmc\_quality}; position count matches \texttt{natoms};
+\texttt{dependent\_uuids} is 1-D.
+Fidelity: re-read raw energy, cell, and forces (every frame, or a stratified
+sample of at least 200 covering every creation path and phase).
+Stop if coverage or schema fails.
+
+Upload with \texttt{upload\_h5\_to\_aws.sh} (dry-run first, \texttt{DO\_DRYRUN=1}).
+RW and RO keys are at
+\url{https://coldfront.osn.mghpcc.org/allocation/744/}
+(project \url{https://coldfront.osn.mghpcc.org/project/329/}).
+Never write keys into git or HDF5. Skip bucket keys that already exist.
+Do not use \texttt{sync\_database\_to\_osn.py} unless the Illinois
+\texttt{database\_index.csv} is available; that syncer is for the existing
+59k-file index.
+
+After upload, Illinois still needs a copy of \texttt{ilnur\_database/},
+\texttt{ricky\_legacy/build\_database\_index.py --hash}, and a refresh of
+\texttt{HP\_dataset\_ilnur\_coverage}. Leave those as explicit follow-ups
+in \texttt{report.md} if Illinois is not mounted.
+
+\section{Order of work}
+\begin{enumerate}
+\item Record the raw-root path.
+\item Write \texttt{inventory.tsv} and diff it against the 4{,}717-frame catalog.
+\item Adapt \texttt{create\_hdf5\_schema.py}. Do not commit secrets.
+\item Hand-check one frame from each of: CEIMC, DFT fluid, DFT with pressure,
+M29, and CSIV (128 atoms).
+\item Full conversion with the ledger.
+\item Run validation.
+\item Dry-run upload, then upload.
+\item Write \texttt{report.md}: counts by creation path, phase, and
+\texttt{qmc\_quality}; uploaded; skipped; failures; Illinois follow-ups.
+\end{enumerate}
+If a raw format matches nothing in the markdown brief, stop after the
+inventory and quote two redacted header examples. Do not guess units.
+
+\section{Plot labels versus HDF5}
+Coverage plots still use series names \texttt{CEIMC}, \texttt{DFT}, and
+\texttt{M29} for Ilnur. Those names are creation paths. HDF5 \texttt{method}
+for those frames is \texttt{DMC}. \texttt{QMCHAMM\_DFT} in the plots is Ricky
+BOPIMC only. Do not delete \texttt{frames\_TP\_rs\_ilnur\_only.csv} from Leonardo.
+\end{document}
