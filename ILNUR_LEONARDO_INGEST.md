@@ -130,6 +130,18 @@ UUIDs are `uuid5` of `ilnur:<prefix>:<METHOD>`, so a rerun replaces the same
 file. Output folders are `P<P>T<T>/` or `PnaT<T>/` when the condition is an
 `RS` label.
 
+Root attributes match the published MDF schema v1
+([SCHEMA.md](https://data.materialsdatafacility.org/mdf_open/fb5ffcb7-074b-4881-9b45-357bc92ec63a/1.0/SCHEMA.md)
+on the [QMC-HAMM deposit](https://www.materialsdatafacility.org/detail/fb5ffcb7-074b-4881-9b45-357bc92ec63a-1.0)):
+`system`, `dataset` (`ilnur_leonardo`), `name_in_system`, `formula` (`H`),
+`natoms`, `species`, `method`, `method_kws`, `creation_date`, `uuid`,
+`author` (a string array), and `structure_temperature` /
+`structure_pressure`. On `/observables` attributes: `phase` (the structure
+label), `state` (`fluid` only when the label is `FLUID`; `C2C`, `CMCA12`,
+`CSIV`, and `PC48` are `solid`), `rs` in bohr, and `qmc_quality` for VMC/DMC.
+The CEIMC/DFT creation path and source tags stay under `/provenance`.
+Strings are variable-length UTF-8. Numeric datasets carry a `@unit` attribute.
+
 ### Files inside one configuration folder
 
 | File | Role |
@@ -328,7 +340,7 @@ and record the mismatch; do not overwrite the cell-derived value with the label.
 ### 2.8 Author string
 
 Do not invent a legal name. The historical Delta path owner is the account
-`isaitov`. Use `author = "Ilnur"` unless a README or input file in the raw
+`isaitov`. Use `author = ["Ilnur Saitov"]` unless a README or input file in the raw
 tree gives a fuller name. Record the account and the machine in `/code`.
 
 ### 2.9 Source tags (use these exact strings)
@@ -463,7 +475,7 @@ dataset name; production files use `total_energy`).
 | `pressure` | float, GPa | nominal label; omit/NaN if the series is rs-only |
 | `rs` | float, bohr | from the stored cell |
 | `creation_date` | string | date of the **calculation** if known, else `unknown`. Not “today”. |
-| `author` | string | `Ilnur` unless the tree says otherwise |
+| `author` | string[] | `["Ilnur Saitov"]` unless the tree says otherwise |
 | `name_in_system` | string | the full prefix, e.g. `CEIMC-C2CT200P250-config-100-dmc` |
 | `config_number` | int | the integer in `-config-N-` |
 | `qmc_quality` | int | VMC/DMC only. **Absent on DFT.** |
@@ -631,7 +643,7 @@ with h5py.File(f"{uid}.h5", "w") as h5:
     h5.attrs["pressure"] = float(P_GPa)          # skip this line if P is unknown
     h5.attrs["rs"] = float(rs_bohr)
     h5.attrs["creation_date"] = creation_date    # from the run, else "unknown"
-    h5.attrs["author"] = "Ilnur"
+    h5.attrs["author"] = ["Ilnur Saitov"]
     h5.attrs["name_in_system"] = prefix          # full prefix
     h5.attrs["config_number"] = int(config_n)
     h5.attrs["phase"] = phase                    # FLUID -> liquid
