@@ -1,0 +1,6 @@
+data/
+.omc/
+__pycache__/
+.pytest_cache/
+qmc-db-cache/
+tests/fixtures/

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QMC-HAMM explorer</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>QMC-HAMM explorer</h1>
+  <div id="hdr">loading index…</div>
+</header>
+<nav id="tabs"></nav>
+<main>
+<section id="tab-hydrogen">
+  <div id="filters" class="bar"></div>
+  <div class="bar">
+    <label>colour by <select id="colorby"><option>source</option><option>method</option><option>phase</option></select></label>
+    <label>x axis <select id="xaxis"><option value="P">P–T (pressure)</option><option value="rs">r_s–T</option></select></label>
+    <span id="selinfo"></span>
+    <button id="clearsel" type="button">clear selection</button>
+    <label><input type="checkbox" id="inclinked" checked> include linked DFT frames</label>
+    <label><input type="checkbox" id="inclsuspect"> include suspect geometries (rs_suspect)</label>
+    <button id="dl" type="button">Download selection as .xyz</button>
+  </div>
+  <div id="pt" class="plot"></div>
+  <button id="notp" type="button" class="notp"></button>
+  <h3>E/atom vs r_s (DMC)</h3>
+  <div id="ers" class="plot small"></div>
+  <details id="eos"><summary>EOS diagnostics</summary><div id="eosbody">loading…</div></details>
+</section>
+<section id="tab-other" hidden><p id="othernote" class="note"></p></section>
+<section>
+  <div id="tablebar" class="bar"></div>
+  <div class="tablewrap"><table id="tbl"></table></div>
+  <div id="pager" class="bar"></div>
+</section>
+<section id="detail" hidden></section>
+</main>
+<form id="xform" method="POST" action="/api/export.xyz" hidden><input type="hidden" name="payload" id="xpayload"></form>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
