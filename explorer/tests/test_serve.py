@@ -101,3 +101,12 @@ def test_suspect_skipped_by_default(server):
     assert hdr["suspect_skipped"] == 0 and hdr["planned_frames"] == 2
     fr = ase.io.read(io.StringIO(r.read().decode()), ":", format="extxyz")
     assert [bool(a.info.get("rs_suspect")) for a in fr] == [False, True]
+
+
+def test_default_cache_is_local(tmp_path, monkeypatch):
+    monkeypatch.delenv("QMCDB_CACHE", raising=False)
+    srv = serve.make_server(port=0, data=tmp_path)
+    try:
+        assert srv.cache == serve.HERE / "qmc-db-cache" / "h5"
+    finally:
+        srv.server_close()

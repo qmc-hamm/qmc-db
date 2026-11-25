@@ -226,7 +226,7 @@ function drawERs() {
     type: SCAT, mode: "markers", x, y, customdata: cd, error_y: { type: "data", array: e, visible: true, thickness: 1 },
     marker: { color: T, colorscale: "Viridis", size: 6, showscale: true, colorbar: { title: "T (K)" } },
     text: cd.map((i, k) => `${esc(C.uuid[i].slice(0, 8))} T=${esc(T[k])} E/atom=${fmtErr(y[k], e[k])}`), hoverinfo: "text",
-  }], themeLayout({ xaxis: { title: "r_s (bohr)" }, yaxis: { title: "E/atom (eV, FSC-corrected)" } }), { responsive: true });
+  }], themeLayout({ xaxis: { title: "r_s (bohr)" }, yaxis: { title: cd.length && cd.every((i) => C.fsc_applied[i] === true) ? "E/atom (eV, FSC-corrected)" : "E/atom (eV)" } }), { responsive: true });
   if (!gd._wired) { wire(gd); gd._wired = true; }
 }
 
@@ -305,7 +305,7 @@ async function showDetail(uuid) {
   const lkl = (arr) => (arr || []).map((u) => `<span class="link" data-u="${esc(u)}">${esc(String(u).slice(0, 8))}</span>`).join(" ") || "—";
   const rowsOf = (o) => Object.entries(o).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`).join("");
   const fsc = Object.entries(ob).filter(([k]) => /fsc/i.test(k));
-  const energy = `<tr><td>total energy (eV, FSC-corrected)</td><td>${fmtErr(ob.total_energy, ob.total_energy_error)}</td></tr>`
+  const energy = `<tr><td>total energy (eV${i != null && C.fsc_applied[i] === true ? ", FSC-corrected" : ""})</td><td>${fmtErr(ob.total_energy, ob.total_energy_error)}</td></tr>`
     + `<tr><td>uncorrected (eV, not used as energy)</td><td>${fmtErr(ob.total_energy_uncorrected ?? (i != null ? C.E_unc[i] : null), null)}</td></tr>`
     + fsc.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(typeof v === "number" ? v.toFixed(4) : JSON.stringify(v))}</td></tr>`).join("");
   const plain = Object.fromEntries(Object.entries(ob).filter(([k]) => !/^structure_factor/.test(k)));

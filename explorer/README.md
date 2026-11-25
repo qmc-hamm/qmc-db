@@ -9,7 +9,7 @@ serves a browser UI plus an extxyz export.
 
 ```
 cd qmc-db
-python explorer/harvest.py  # first run about 32 min, 7.3 GB into qmc-db-cache/h5
+python explorer/harvest.py  # first run about 32 min, 7.3 GB into explorer/qmc-db-cache/h5 (git-ignored)
 python explorer/serve.py    # prints the URL
 ```
 
@@ -134,7 +134,9 @@ Chabrier-Debras 2021), has not been built. Treat `P_estimated` values with
 
 ## Tests
 
+The `.h5` fixtures in `explorer/tests/fixtures/` are not in git (git-ignored); get them from the maintainer.
+
 ```
-cd /home/pyang/soft/pymods/qmc-db
+cd qmc-db
 ~/.venv/py312/bin/python -m pytest explorer/tests -q && node --test explorer/tests/fmt.test.mjs
 ```

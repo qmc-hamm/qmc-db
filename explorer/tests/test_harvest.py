@@ -91,3 +91,42 @@ def test_version_mismatch_reparses(tmp_path, monkeypatch):
 def test_limit_refused_on_default_data():
     with pytest.raises(SystemExit):
         harvest.main(["--limit", "1"])
+
+
+def test_failed_changed_download_keeps_old(tmp_path, monkeypatch):
+    remote = fake_remote()
+    run(tmp_path, monkeypatch, remote)
+    remote2 = [dict(o) for o in remote]
+    remote2[1]["etag"] = "NEW"
+    monkeypatch.setattr(bucket, "list_bucket", lambda *a, **k: remote2)
+    monkeypatch.setattr(bucket, "download", lambda obj, cache: (_ for _ in ()).throw(IOError("boom")))
+    harvest.main(["--cache", str(FIXD), "--data", str(tmp_path), "--local-dir", str(LI)])
+    idx = json.loads(gzip.open(tmp_path / "index.json.gz").read())
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    assert remote[1]["key"] in idx["columns"]["key"]
+    assert man[remote[1]["key"]]["etag"] == remote[1]["etag"]  # old ETag kept, so the next run retries
+
+
+def test_unchanged_missing_cache_redownloaded(tmp_path, monkeypatch):
+    import shutil
+    cache = tmp_path / "cache"
+    shutil.copytree(FIXD, cache)
+    remote = fake_remote()
+    monkeypatch.setattr(bucket, "list_bucket", lambda *a, **k: remote)
+    got = []
+    monkeypatch.setattr(bucket, "download", lambda obj, c: got.append(obj["key"]) or shutil.copy(FIXD / Path(obj["key"]).name, c))
+    args = ["--cache", str(cache), "--data", str(tmp_path / "d"), "--local-dir", str(LI)]
+    harvest.main(args)
+    got.clear()
+    (cache / Path(remote[1]["key"]).name).unlink()
+    harvest.main(args)
+    assert got == [remote[1]["key"]]
+
+
+def test_no_fit_removes_eos_files(tmp_path, monkeypatch):
+    run(tmp_path, monkeypatch, fake_remote())
+    assert (tmp_path / "eos_residuals.json").exists()
+    monkeypatch.setattr(harvest.eosmod.FittedEos, "fit", classmethod(lambda cls, rows: (_ for _ in ()).throw(ValueError("no training rows"))))
+    _, rep = run(tmp_path, monkeypatch, fake_remote())
+    assert rep["eos"]["name"] == "none"
+    assert not (tmp_path / "eos_residuals.json").exists() and not (tmp_path / "eos_fit.json").exists()

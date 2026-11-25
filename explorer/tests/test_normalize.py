@@ -64,3 +64,9 @@ def test_unreadable_file(tmp_path):
     p.write_bytes(b"0123456789")
     r = parse_file(p, "QMCHAMM/junk.h5", "e", 10)
     assert r["parse_error"] and r["tab"] == "other"
+
+
+def test_aurora_vmc_not_fsc(fx):
+    r = row(fx, "4c9372432d36491ea1b1d7b41a21bb9b.h5")  # quality 10, observables.attrs finite_size_corrected=False
+    assert r["method"] == "VMC" and r["qmc_quality"] == 10
+    assert r["fsc_applied"] is False

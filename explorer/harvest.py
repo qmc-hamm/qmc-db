@@ -88,7 +88,7 @@ def _counts(rows, field):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--cache", default=os.environ.get("QMCDB_CACHE", "qmc-db-cache/h5"))
+    ap.add_argument("--cache", default=os.environ.get("QMCDB_CACHE", str(HERE / "qmc-db-cache" / "h5")))
     ap.add_argument("--data", default=str(HERE / "data"))
     ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=16)
@@ -121,7 +121,8 @@ def main(argv=None):
     new_s, changed_s, unch_s = set(plan["new"]), set(plan["changed"]), set(plan["unchanged"])
     stale = {k for k in changed_s if a.no_download and not k.startswith("local:")}
     todo = [k for k in plan["new"] + plan["changed"] if k not in stale]
-    todo += [k for k in plan["unchanged"] if k not in prev]
+    todo += [k for k in plan["unchanged"] if k not in prev or not (a.no_download or k.startswith("local:"))
+             and not (_path(k, cache).exists() and _path(k, cache).stat().st_size == objs[k]["size"])]
     if reparse:
         todo += [k for k in stale if _path(k, cache).exists()]
     need_dl = []
@@ -149,6 +150,9 @@ def main(argv=None):
                 if err:
                     failed.add(k)
                     errors_dl.append({"key": k, "error": err})
+    late = failed & changed_s  # keep the old row and ETag so the next run retries
+    stale |= late
+    failed -= late
     skip = failed | {k for k in todo if not k.startswith("local:") and not _path(k, cache).exists()}
 
     jobs = [(str(_path(k, cache)), k, manifest[k]["etag"] if k in stale else objs[k]["etag"],
@@ -183,6 +187,8 @@ def main(argv=None):
         for r in rows:
             r["P_used"], r["P_estimated"], r["P_extrapolated"] = r["P_recorded"], False, False
         report["eos"] = {"name": "none", "reason": str(e)}
+        for n in ("eos_fit.json", "eos_residuals.json"):
+            (data / n).unlink(missing_ok=True)
     if fit is not None:
         eosmod.apply_eos(rows, fit)
         report["eos"] = {"name": fit.name, "a": fit.a, "b": fit.b, "cv_rms": fit.cv_rms}

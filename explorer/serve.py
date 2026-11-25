@@ -221,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def make_server(port=8765, data=None, cache=None):
     data = Path(data or HERE / "data")
-    cache = Path(cache or os.environ.get("QMCDB_CACHE", "/scratch/pyang/qmc-db-cache/h5"))
+    cache = Path(cache or os.environ.get("QMCDB_CACHE", str(HERE / "qmc-db-cache" / "h5")))
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     srv.daemon_threads = True
     srv.data, srv.cache = data, cache
@@ -235,7 +235,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--port", type=int, default=8771)
     ap.add_argument("--data", default=str(HERE / "data"))
-    ap.add_argument("--cache", default=os.environ.get("QMCDB_CACHE", "/scratch/pyang/qmc-db-cache/h5"))
+    ap.add_argument("--cache", default=os.environ.get("QMCDB_CACHE", str(HERE / "qmc-db-cache" / "h5")))
     a = ap.parse_args(argv)
     srv = make_server(a.port, a.data, a.cache)
     print(f"http://127.0.0.1:{srv.server_address[1]}/", flush=True)

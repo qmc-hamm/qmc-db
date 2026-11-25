@@ -6,7 +6,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-NORMALIZE_VERSION = 2
+NORMALIZE_VERSION = 3
 BOHR = 0.529177210903
 DEFECT_SYSTEMS = {"FeAlN", "CrAlN", "NVdiamond", "SiVdiamond"}
 
@@ -171,7 +171,8 @@ def _fill(f, row):
         row["E_per_atom"] = row["E"] / natoms
     if method in ("VMC", "DMC"):
         fsc = _num(_ds(f, "observables/fsc_kinetic_energy"))
-        row["fsc_applied"] = bool(fsc is not None or row["qmc_quality"] == 10)
+        flag = _safe(lambda: f["observables"].attrs.get("finite_size_corrected"))
+        row["fsc_applied"] = bool(flag) if flag is not None else bool(fsc is not None or row["qmc_quality"] == 10)
 
     # links and flags
     deps = _ds(f, "provenance/dependent_uuids")
